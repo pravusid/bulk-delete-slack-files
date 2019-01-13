@@ -92,8 +92,14 @@ const main = () => {
   const operation = () => {
     getList()
       .then((res) => {
-        rl.write(`파일 개수는 총 ${res.paging.total}개 입니다\n`);
-        question('보존할 파일의 기간을 입력하세요(입력한 날짜 이전 삭제)\n', (days) => {
+        const { total } = res.paging;
+        rl.write(`파일 개수는 총 ${total}개 입니다\n`);
+        if (total === 0) {
+          rl.write('삭제할 파일이 없으므로 종료합니다');
+          rl.close();
+          return;
+        }
+        question('보존할 파일의 기간을 입력하세요(입력한 날짜 이전 삭제)', (days) => {
           rl.write(`${days}일 이전 파일을 삭제합니다\n`);
           rl.close();
           deleteFiles(days, res.paging);
@@ -107,7 +113,7 @@ const main = () => {
       token = data.replace(/[\r|\n|\r\n]$/, '');
       operation();
     } else {
-      question('TOKEN을 입력하세요\n', (input) => {
+      question('TOKEN을 입력하세요', (input) => {
         token = input;
         operation();
       });
