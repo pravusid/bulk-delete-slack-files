@@ -5,9 +5,9 @@
   "engines": {
     "node": ">=8.0.0"
   },
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node ."
+    "start": "node src/"
   },
   "author": "Sangdon Park <pravusid@gmail.com>",
   "license": "MIT",
