@@ -73,7 +73,7 @@ const downloadFile = file => new Promise((resolve, reject) => {
     .close();
 });
 
-const deleteFile = (fileId) => {
+const deleteFile = (targetSize, fileId) => {
   http().post(
     '/files.delete',
     {
@@ -86,7 +86,7 @@ const deleteFile = (fileId) => {
     },
     (err, resp) => {
       process.stdout.write(resp.body);
-      sleep.msleep(1500);
+      if (targetSize > 50) sleep.msleep(1500);
     },
   );
 };
@@ -94,10 +94,11 @@ const deleteFile = (fileId) => {
 const deleteFiles = (days, paging) => {
   getEntireList(days, paging)
     .then((res) => {
-      process.stdout.write(`삭제대상 파일은 ${res[0].paging.total}개 입니다\n`);
+      const targetSize = res[0].paging.total;
+      process.stdout.write(`삭제대상 파일은 ${targetSize}개 입니다\n`);
       res.forEach(list => list.files.forEach((f) => {
         downloadFile(f)
-          .then(() => deleteFile(f.id))
+          .then(() => deleteFile(targetSize, f.id))
           .catch(err => console.error(err));
       }));
     })
