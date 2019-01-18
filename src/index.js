@@ -69,8 +69,7 @@ const downloadFile = file => new Promise((resolve, reject) => {
     .get(file.url_private_download, { baseUrl: '' })
     .on('response', () => resolve())
     .on('error', error => reject(error))
-    .pipe(fs.createWriteStream(`./backup/${file.timestamp}_${file.id}_${file.name}`))
-    .close();
+    .pipe(fs.createWriteStream(`./backup/${file.timestamp}_${file.id}_${file.name}`));
 });
 
 const deleteFile = (targetSize, fileId) => {
@@ -91,42 +90,48 @@ const deleteFile = (targetSize, fileId) => {
   );
 };
 
-const deleteFiles = (days, paging) => {
-  getEntireList(days, paging)
-    .then((res) => {
-      const targetSize = res[0].paging.total;
-      process.stdout.write(`삭제대상 파일은 ${targetSize}개 입니다\n`);
-      res.forEach(list => list.files.forEach((f) => {
-        downloadFile(f)
-          .then(() => deleteFile(targetSize, f.id))
-          .catch(err => console.error(err));
-      }));
-    })
-    .catch(err => console.error(err));
+const deleteFiles = async (days, paging) => {
+  try {
+    const entire = await getEntireList(days, paging);
+    const targetSize = entire[0].paging.total;
+    process.stdout.write(`삭제대상 파일은 ${targetSize}개 입니다\n`);
+    entire.forEach(list => list.files.forEach(async (f) => {
+      try {
+        await downloadFile(f);
+        deleteFile(targetSize, f.id);
+      } catch (err) {
+        process.stderr.write(err);
+      }
+    }));
+  } catch (error) {
+    process.stderr.write(error);
+  }
 };
 
 const main = () => {
-  if (!fs.existsSync('./backup')) {
-    fs.mkdirSync('./backup');
-  }
-  const operation = () => {
-    getList()
-      .then((res) => {
-        const { total } = res.paging;
-        rl.write(`파일 개수는 총 ${total}개 입니다\n`);
-        if (total === 0) {
-          rl.write('삭제할 파일이 없으므로 종료합니다');
-          rl.close();
-          return;
-        }
+  const operation = async () => {
+    try {
+      const list = await getList();
+      const { total } = list.paging;
+      rl.write(`파일 개수는 총 ${total}개 입니다\n`);
+      if (total === 0) {
+        rl.write('삭제할 파일이 없으므로 종료합니다');
+        rl.close();
+        return;
+      }
 
-        question('보존할 파일의 기간을 입력하세요(입력한 날짜 이전 삭제)', (days) => {
-          rl.write(`${days}일 이전 파일을 삭제합니다\n`);
-          rl.close();
-          deleteFiles(days, res.paging);
-        });
-      })
-      .catch(err => console.error(err));
+      if (!fs.existsSync('./backup')) {
+        fs.mkdirSync('./backup');
+      }
+
+      question('보존할 파일의 기간을 입력하세요(입력한 날짜 이전 삭제)', (days) => {
+        rl.write(`${days}일 이전 파일을 삭제합니다\n`);
+        rl.close();
+        deleteFiles(days, list.paging);
+      });
+    } catch (err) {
+      process.stderr.write(err);
+    }
   };
 
   fs.readFile('.token', 'utf8', (err, data) => {
