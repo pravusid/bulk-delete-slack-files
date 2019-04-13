@@ -1,9 +1,9 @@
 {
   "name": "bulk-delete-slack-files",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "bulk deletion of slack files for free space",
   "engines": {
-    "node": ">=8.1.0"
+    "node": ">=10.0.0"
   },
   "main": "src/index.js",
   "scripts": {
@@ -12,12 +12,14 @@
   "author": "Sangdon Park <pravusid@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "request": "^2.88.0",
-    "sleep": "^5.2.4"
+    "axios": "^0.18.0"
   },
   "devDependencies": {
     "eslint": "^5.12.0",
     "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.14.0"
+    "eslint-config-prettier": "^4.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-prettier": "^3.0.1",
+    "prettier": "^1.17.0"
   }
 }

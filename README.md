@@ -5,7 +5,7 @@ Slack 파일 삭제를 위한 스크립트
 - `.token` 파일을 생성하여 토큰을 입력해 놓거나, 콘솔에서 반복적으로 토큰 입력가능
 - 지정한 날짜 이전의 파일을 모두 삭제함(콘솔에서 입력)
 - 삭제 대상 파일은 script 파일이 위치한 디렉토리 아래의 `./backup/` 디렉토리에 백업됨
-- Slack API의 rate limits로 인하여 50개 이상의 파일을 삭제할 경우 1.5초씩 blocking 됨
+- Slack API의 rate limits로 인하여 50개 이상의 파일을 삭제할 경우 1.2초씩 blocking 됨
 
 ## Token
 

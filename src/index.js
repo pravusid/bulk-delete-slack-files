@@ -1,150 +1,148 @@
 const readline = require('readline');
-const request = require('request');
 const fs = require('fs');
-const sleep = require('sleep');
+const axios = require('axios');
 
-let token = '';
+/* eslint-disable no-console */
 
-const http = () => request.defaults({
-  baseUrl: 'https://slack.com/api',
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-});
+let token;
+
+const http = () =>
+  axios.create({
+    baseURL: 'https://slack.com/api',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
-const question = (msg, callback) => {
-  rl.question(msg, (line) => {
-    if (!line) {
-      rl.write('종료합니다');
-      rl.close();
-      return;
-    }
-    callback(line);
+const question = msg =>
+  new Promise(resolve => {
+    rl.question(msg, line => {
+      if (!line) {
+        console.log('종료합니다');
+      }
+      resolve(line);
+    });
   });
+
+const waitSeconds = msec =>
+  new Promise(resolve => {
+    setTimeout(() => {
+      resolve();
+    }, msec);
+  });
+
+const getList = async (daysBefore = 0, page = 1) => {
+  const response = await http().get('/files.list', {
+    headers: {
+      'Accepted-content-types': 'application/x-www-form-urlencoded',
+    },
+    params: {
+      page,
+      ts_to: Math.floor((Date.now() - daysBefore * 86400000) / 1000),
+    },
+  });
+  const body = response.data;
+  const { paging, files } = body;
+  return { paging, files };
 };
 
-const getList = (daysBefore = 0, page = 1) => new Promise((resolve, reject) => {
-  http().get(
-    '/files.list',
-    {
-      headers: {
-        'Accepted-content-types': 'application/x-www-form-urlencoded',
-      },
-      qs: {
-        page,
-        ts_to: Math.floor((Date.now() - daysBefore * 86400000) / 1000),
-      },
-    },
-    (err, resp) => {
-      if (err !== null) {
-        reject(new Error('통신과정중 오류발생\n'));
-        return;
-      }
+const getEntireList = (daysBefore, paging) =>
+  Promise.all([...Array(paging.pages).keys()].map(p => getList(daysBefore, p + 1)));
 
-      const parsedResp = JSON.parse(resp.body);
+const downloadFile = async file => {
+  if (!file.url_private_download) {
+    return;
+  }
+  const response = await http().get(file.url_private_download, {
+    baseURL: '',
+    responseType: 'stream',
+  });
+  response.data.pipe(fs.createWriteStream(`./backup/${file.timestamp}_${file.id}_${file.name}`));
+};
 
-      if (!parsedResp.ok) {
-        reject(new Error('api에서 유효하지 않은 응답\n'));
-        return;
-      }
-
-      const { paging, files } = parsedResp;
-      resolve({ paging, files });
-    },
-  );
-});
-
-const getEntireList = (daysBefore, paging) => Promise.all(
-  [...Array(paging.pages).keys()].map(p => getList(daysBefore, p + 1)),
-);
-
-const downloadFile = file => new Promise((resolve, reject) => {
-  if (!file.url_private_download) return;
-  http()
-    .get(file.url_private_download, { baseUrl: '' })
-    .on('response', () => resolve())
-    .on('error', error => reject(error))
-    .pipe(fs.createWriteStream(`./backup/${file.timestamp}_${file.id}_${file.name}`));
-});
-
-const deleteFile = (targetSize, fileId) => {
-  http().post(
+const deleteFile = async fileId => {
+  const response = await http().post(
     '/files.delete',
+    {
+      file: fileId,
+    },
     {
       headers: {
         'Accepted-content-types': 'application/json',
       },
-      formData: {
-        file: fileId,
-      },
-    },
-    (err, resp) => {
-      process.stdout.write(resp.body);
-      if (targetSize > 50) sleep.msleep(1500);
     },
   );
+  console.log(response.data);
 };
 
 const deleteFiles = async (days, paging) => {
   try {
     const entire = await getEntireList(days, paging);
-    const targetSize = entire[0].paging.total;
-    process.stdout.write(`삭제대상 파일은 ${targetSize}개 입니다\n`);
-    entire.forEach(list => list.files.forEach(async (f) => {
-      try {
-        await downloadFile(f);
-        deleteFile(targetSize, f.id);
-      } catch (err) {
-        process.stderr.write(err);
-      }
-    }));
+    const [first] = entire;
+    const targetSize = first.paging.total;
+    console.log(`삭제대상 파일은 ${targetSize}개 입니다\n`);
+
+    await entire.reduce(async (lPromise, piece) => {
+      await lPromise;
+      // eslint-disable-next-line
+      return piece.files.reduce(async (fPromise, file) => {
+        try {
+          await fPromise;
+          await downloadFile(file);
+          await deleteFile(file.id);
+          return targetSize > 50 ? waitSeconds(1200) : Promise.resolve();
+        } catch (err) {
+          console.error(err);
+        }
+      }, Promise.resolve());
+    }, Promise.resolve());
   } catch (error) {
-    process.stderr.write(error);
+    console.error(error);
   }
 };
 
-const main = () => {
-  const operation = async () => {
-    try {
-      const list = await getList();
-      const { total } = list.paging;
-      rl.write(`파일 개수는 총 ${total}개 입니다\n`);
-      if (total === 0) {
-        rl.write('삭제할 파일이 없으므로 종료합니다');
-        rl.close();
-        return;
-      }
-
-      if (!fs.existsSync('./backup')) {
-        fs.mkdirSync('./backup');
-      }
-
-      question('보존할 파일의 기간을 입력하세요(입력한 날짜 이전 삭제)', (days) => {
-        rl.write(`${days}일 이전 파일을 삭제합니다\n`);
-        rl.close();
-        deleteFiles(days, list.paging);
-      });
-    } catch (err) {
-      process.stderr.write(err);
+const operation = async () => {
+  try {
+    const list = await getList();
+    const { total } = list.paging;
+    console.log(`파일 개수는 총 ${total}개 입니다\n`);
+    if (total === 0) {
+      console.log('삭제할 파일이 없습니다');
+      return;
     }
-  };
 
-  fs.readFile('.token', 'utf8', (err, data) => {
-    if (data) {
-      token = data.replace(/[\r|\n|\r\n]$/, '');
-      operation();
-    } else {
-      question('TOKEN을 입력하세요', (input) => {
-        token = input;
-        operation();
-      });
+    if (!fs.existsSync('./backup')) {
+      fs.mkdirSync('./backup');
     }
-  });
+
+    const days = await question(
+      '보존할 파일의 기간을 입력하세요(입력한 날짜 이전 삭제)\nENTER를 입력하면 종료합니다\n',
+    );
+    if (!days) {
+      return;
+    }
+
+    console.log(`${days}일 이전 파일을 삭제합니다\n`);
+    await deleteFiles(days, list.paging);
+  } catch (err) {
+    console.error(err);
+  }
 };
 
-main();
+const main = async () => {
+  const data = fs.readFileSync('.token', 'utf8');
+  token = data ? data.replace(/[\r|\n|\r\n]$/, '') : await question('TOKEN을 입력하세요');
+  await operation();
+};
+
+main()
+  .then(() => {
+    console.log('종료합니다');
+    rl.close();
+  })
+  .catch(() => rl.close());
