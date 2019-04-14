@@ -4,15 +4,7 @@ const axios = require('axios');
 
 /* eslint-disable no-console */
 
-let token;
-
-const http = () =>
-  axios.create({
-    baseURL: 'https://slack.com/api',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+let http;
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -21,12 +13,7 @@ const rl = readline.createInterface({
 
 const question = msg =>
   new Promise(resolve => {
-    rl.question(msg, line => {
-      if (!line) {
-        console.log('종료합니다');
-      }
-      resolve(line);
-    });
+    rl.question(msg, line => resolve(line));
   });
 
 const waitSeconds = msec =>
@@ -37,7 +24,7 @@ const waitSeconds = msec =>
   });
 
 const getList = async (daysBefore = 0, page = 1) => {
-  const response = await http().get('/files.list', {
+  const response = await http.get('/files.list', {
     headers: {
       'Accepted-content-types': 'application/x-www-form-urlencoded',
     },
@@ -58,7 +45,7 @@ const downloadFile = async file => {
   if (!file.url_private_download) {
     return;
   }
-  const response = await http().get(file.url_private_download, {
+  const response = await http.get(file.url_private_download, {
     baseURL: '',
     responseType: 'stream',
   });
@@ -66,7 +53,7 @@ const downloadFile = async file => {
 };
 
 const deleteFile = async fileId => {
-  const response = await http().post(
+  const response = await http.post(
     '/files.delete',
     {
       file: fileId,
@@ -136,10 +123,17 @@ const operation = async () => {
 
 const main = async () => {
   const data = fs.readFileSync('.token', 'utf8');
-  token = data ? data.replace(/[\r|\n|\r\n]$/, '') : await question('TOKEN을 입력하세요');
+  const token = data ? data.replace(/[\r|\n|\r\n]$/, '') : await question('TOKEN을 입력하세요');
+  http = axios.create({
+    baseURL: 'https://slack.com/api',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
   await operation();
 };
 
+/* main */
 main()
   .then(() => {
     console.log('종료합니다');
