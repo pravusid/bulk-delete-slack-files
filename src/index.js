@@ -2,8 +2,6 @@ const readline = require('readline');
 const fs = require('fs');
 const axios = require('axios');
 
-/* eslint-disable no-console */
-
 let http;
 
 const rl = readline.createInterface({
