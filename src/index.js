@@ -120,8 +120,10 @@ const operation = async () => {
 };
 
 const main = async () => {
-  const data = fs.readFileSync('.token', 'utf8');
-  const token = data ? data.replace(/[\r|\n|\r\n]$/, '') : await question('TOKEN을 입력하세요');
+  const fileExist = fs.existsSync('.token');
+  const token = fileExist
+    ? fs.readFileSync('.token', 'utf8').replace(/[\r|\n|\r\n]$/, '')
+    : await question('TOKEN을 입력하세요');
   http = axios.create({
     baseURL: 'https://slack.com/api',
     headers: {
